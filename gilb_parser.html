@@ -1,0 +1,1273 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Парсер метрики Джилба — Python</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel2: #172033;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --line: #334155;
+      --accent: #60a5fa;
+      --good: #34d399;
+      --warn: #fbbf24;
+      --bad: #f87171;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: linear-gradient(160deg, #0b1120, var(--bg));
+    }
+
+    .page {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 18px;
+    }
+
+    .card {
+      background: rgba(17,24,39,.92);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.18);
+    }
+
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 640px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px;
+      background: #0b1220;
+      color: #e2e8f0;
+      font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    button, .fileLabel {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 10px 14px;
+      background: #162033;
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button.primary {
+      background: #1d4ed8;
+      border-color: #2563eb;
+    }
+
+    button.success {
+      background: #065f46;
+      border-color: #059669;
+    }
+
+    button.danger {
+      background: #7f1d1d;
+      border-color: #b91c1c;
+    }
+
+    button:hover, .fileLabel:hover {
+      filter: brightness(1.12);
+    }
+
+    input[type=file] {
+      display: none;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .metric {
+      background: var(--panel2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .metric .label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .metric .value {
+      font-size: 26px;
+      font-weight: 800;
+      margin-top: 4px;
+    }
+
+
+
+    .note {
+      margin-top: 12px;
+      color: #cbd5e1;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .tableWrap {
+      overflow: auto;
+      margin-top: 14px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: #cbd5e1;
+      background: #111827;
+      position: sticky;
+      top: 0;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #93c5fd;
+    }
+
+    .ok { color: var(--good); }
+    .warn { color: var(--warn); }
+    .err { color: var(--bad); }
+
+    .status {
+      margin-top: 10px;
+      min-height: 20px;
+      color: var(--muted);
+    }
+
+    .foot {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      textarea {
+        min-height: 420px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+<div class="page">
+  <h1>Парсер метрики Джилба для Python</h1>
+
+  <div class="layout">
+    <section class="card">
+      <h2>Исходный код Python</h2>
+      <textarea id="code" spellcheck="false"></textarea>
+
+      <div class="buttons">
+        <button class="primary" id="analyzeBtn">Анализировать</button>
+        <button class="success" id="exampleBtn">Загрузить пример</button>
+
+        <label class="fileLabel">
+          Открыть .py
+          <input id="fileInput" type="file" accept=".py,text/plain">
+        </label>
+
+        <button class="danger" id="clearBtn">Очистить</button>
+      </div>
+
+      <div class="status" id="status"></div>
+    </section>
+
+    <section class="card">
+      <h2>Результат</h2>
+
+      <div class="metrics" id="metrics"></div>
+
+
+      <div class="tableWrap" id="summaryTable"></div>
+      <div class="tableWrap" id="branchTable"></div>
+
+    </section>
+  </div>
+</div>
+
+<script>
+  const EXAMPLE = `
+
+def calculate_bonus(age, purchases, weekday):
+    bonus = 0
+
+    if age < 18:
+        bonus += 5
+    elif age < 30:
+        bonus += 3
+    else:
+        bonus += 2
+
+    if purchases > 0:
+        for position in range(purchases):
+            if position % 2 == 0:
+                bonus += 1
+                if bonus > 10:
+                    bonus -= 2
+                    if bonus > 11:
+                        bonus -= 2
+                        if bonus > 12:
+                            bonus -= 2
+
+        counter = 0
+        while counter < purchases:
+            if counter % 3 == 0:
+                bonus += 1
+            counter += 1
+
+    match weekday:
+        case "monday":
+            bonus += 3
+        case "tuesday":
+            bonus += 2
+        case "wednesday":
+            bonus += 4
+        case _:
+            bonus += 1
+
+    return bonus
+
+
+`;
+
+  function expandTabs(s) {
+    return s.replace(/\t/g, "    ");
+  }
+
+  function stripComment(line, state) {
+    let result = "";
+    let quote = null;
+
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      const triple = line.slice(i, i + 3);
+
+      if (state.tripleQuote) {
+        if (triple === state.tripleQuote) {
+          state.tripleQuote = null;
+          i += 2;
+        }
+        continue;
+      }
+
+      if (!quote && (triple === "'''" || triple === '"""')) {
+        state.tripleQuote = triple;
+        i += 2;
+        continue;
+      }
+
+      if (quote) {
+        result += c;
+
+        if (c === quote && line[i - 1] !== "\\") {
+          quote = null;
+        }
+
+        continue;
+      }
+
+      if (c === '"' || c === "'") {
+        quote = c;
+        result += c;
+        continue;
+      }
+
+      if (c === "#") {
+        break;
+      }
+
+      result += c;
+    }
+
+    return result;
+  }
+
+  function normalizeLines(code) {
+    const state = {
+      tripleQuote: null
+    };
+
+    return code.replace(/\r\n?/g, "\n").split("\n").map((raw, index) => {
+      const clean = stripComment(raw, state);
+      const expanded = expandTabs(clean);
+      const noLead = expanded.trim();
+
+      return {
+        no: index + 1,
+        raw,
+        text: noLead,
+        indent: expanded.length - expanded.replace(/^ +/, "").length
+      };
+    });
+  }
+
+  function isHeader(line) {
+    return /^(async\s+def|def|class|if|elif|for|while|try|with|match)\b/.test(line);
+  }
+
+  function isIf(line) {
+    return /^if\b/.test(line);
+  }
+
+  function isElif(line) {
+    return /^elif\b/.test(line);
+  }
+
+  function isElse(line) {
+    return /^else\s*:/.test(line);
+  }
+
+  function isFor(line) {
+    return /^for\b/.test(line);
+  }
+
+  function isWhile(line) {
+    return /^while\b/.test(line);
+  }
+
+  function isMatch(line) {
+    return /^match\b/.test(line);
+  }
+
+  function isCase(line) {
+    return /^case\b/.test(line);
+  }
+
+  function splitTopLevelSemicolons(text) {
+    const result = [];
+    let start = 0;
+    let depth = 0;
+    let quote = null;
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+
+      if ((c === '"' || c === "'") && text[i - 1] !== "\\") {
+        quote = quote === c ? null : (quote ? quote : c);
+      }
+
+      if (quote) continue;
+
+      if ("([{".includes(c)) depth++;
+      if (")]}".includes(c)) depth = Math.max(0, depth - 1);
+
+      if (c === ";" && depth === 0) {
+        result.push(text.slice(start, i).trim());
+        start = i + 1;
+      }
+    }
+
+    result.push(text.slice(start).trim());
+    return result.filter(Boolean);
+  }
+
+  function statementKind(line) {
+    if (!line) return null;
+    if (/^@/.test(line)) return null;
+
+    if (/^(?:async\s+def|def)\b/.test(line)) return "def";
+    if (/^class\b/.test(line)) return "class";
+    if (/^if\b/.test(line)) return "if";
+    if (/^elif\b/.test(line)) return null;
+    if (/^for\b/.test(line)) return "for";
+    if (/^while\b/.test(line)) return "while";
+    if (/^try\s*:/.test(line)) return "try";
+    if (/^with\b/.test(line)) return "with";
+    if (/^match\b/.test(line)) return "match";
+
+    if (/^else\s*:/.test(line)) return null;
+    if (/^except\b/.test(line)) return null;
+    if (/^finally\s*:/.test(line)) return null;
+    if (/^case\b/.test(line)) return null;
+
+    if (/^return\b/.test(line)) return "return";
+    if (/^break\b/.test(line)) return "break";
+    if (/^continue\b/.test(line)) return "continue";
+    if (/^pass\b/.test(line)) return "pass";
+    if (/^raise\b/.test(line)) return "raise";
+    if (/^assert\b/.test(line)) return "assert";
+    if (/^del\b/.test(line)) return "del";
+    if (/^yield\b/.test(line)) return "yield";
+    if (/^global\b/.test(line)) return "global";
+    if (/^nonlocal\b/.test(line)) return "nonlocal";
+    if (/^type\b/.test(line)) return "type";
+
+    if (/^(?:from\s+\S+\s+import|import)\b/.test(line)) return "import";
+
+    return null;
+  }
+
+  function bracketDelta(text) {
+    let depth = 0;
+    let quote = null;
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+
+      if (quote) {
+        if (c === "\\" && i + 1 < text.length) {
+          i++;
+          continue;
+        }
+
+        if (c === quote) {
+          quote = null;
+        }
+
+        continue;
+      }
+
+      if (c === '"' || c === "'") {
+        quote = c;
+        continue;
+      }
+
+      if ("([{".includes(c)) {
+        depth++;
+      } else if (")]}".includes(c)) {
+        depth--;
+      }
+    }
+
+    return depth;
+  }
+
+  function buildMatchBlocks(lines) {
+    const blocks = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      if (!isMatch(lines[i].text)) continue;
+
+      const mIndent = lines[i].indent;
+      let caseIndent = null;
+      const cases = [];
+      let end = lines.length;
+
+      for (let j = i + 1; j < lines.length; j++) {
+        const t = lines[j].text;
+        if (!t) continue;
+
+        if (lines[j].indent <= mIndent) {
+          end = j;
+          break;
+        }
+
+        if (isCase(t) && caseIndent === null) {
+          caseIndent = lines[j].indent;
+        }
+
+        if (
+                caseIndent !== null &&
+                lines[j].indent === caseIndent &&
+                isCase(t)
+        ) {
+          cases.push(j);
+        }
+      }
+
+      blocks.push({
+        lineIndex: i,
+        indent: mIndent,
+        caseIndent,
+        cases,
+        end
+      });
+    }
+
+    return blocks;
+  }
+
+  function matchExtraForLine(index, blocks) {
+    let extra = 0;
+
+    for (const b of blocks) {
+      if (
+              index <= b.lineIndex ||
+              index >= b.end ||
+              b.cases.length < 2 ||
+              b.caseIndent === null
+      ) {
+        continue;
+      }
+
+      let activeCase = -1;
+
+      for (let k = 0; k < b.cases.length; k++) {
+        if (b.cases[k] <= index) {
+          activeCase = k;
+        } else {
+          break;
+        }
+      }
+
+      if (activeCase >= 0) {
+        extra += Math.min(activeCase, b.cases.length - 2);
+      }
+    }
+
+    return extra;
+  }
+
+  function conditionalDepths(lines, matchBlocks) {
+    const depths = Array(lines.length).fill(0);
+    const stack = [];
+    let maxDepth = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].text;
+      if (!line) continue;
+
+      const indent = lines[i].indent;
+      const elif = isElif(line);
+      const els = isElse(line);
+      const iff = isIf(line);
+
+      if (elif || els) {
+        while (stack.length && stack[stack.length - 1].indent > indent) {
+          stack.pop();
+        }
+
+        if (
+                stack.length &&
+                stack[stack.length - 1].indent === indent
+        ) {
+          depths[i] = stack[stack.length - 1].depth;
+        } else {
+          depths[i] = 1;
+          stack.push({
+            indent,
+            depth: 1
+          });
+        }
+      } else {
+        while (stack.length && stack[stack.length - 1].indent >= indent) {
+          stack.pop();
+        }
+
+        if (iff) {
+          const parent =
+                  stack.length
+                          ? stack[stack.length - 1].depth
+                          : 0;
+
+          const d = parent + 1;
+
+          stack.push({
+            indent,
+            depth: d
+          });
+
+          depths[i] = d;
+        } else if (stack.length) {
+          depths[i] = stack[stack.length - 1].depth;
+        }
+      }
+
+      const matchExtra =
+              matchExtraForLine(i, matchBlocks);
+
+      const effective =
+              depths[i] + matchExtra;
+
+      if (effective > maxDepth) {
+        maxDepth = effective;
+      }
+
+      const mb =
+              matchBlocks.find(x => x.lineIndex === i);
+
+      if (mb && mb.cases.length >= 2) {
+        const matchDepth =
+                depths[i] + (mb.cases.length - 2);
+
+        if (matchDepth > maxDepth) {
+          maxDepth = matchDepth;
+        }
+      }
+    }
+
+    return {
+      depths,
+      maxDepth
+    };
+  }
+
+  function countStatements(lines) {
+    const counts = {};
+    let bracketDepth = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const text = lines[i].text;
+      if (!text) continue;
+
+      const wasContinuation = bracketDepth > 0;
+
+      if (!wasContinuation) {
+        if (
+                isHeader(text) ||
+                /^(?:else|except\b|finally\s*:|case\b)/.test(text)
+        ) {
+          const kind = statementKind(text);
+
+          if (kind) {
+            counts[kind] = (counts[kind] || 0) + 1;
+          }
+        } else if (!/^@/.test(text)) {
+          const parts =
+                  splitTopLevelSemicolons(text);
+
+          for (const part of parts) {
+            if (!part) continue;
+
+            const kind =
+                    statementKind(part);
+
+            if (kind) {
+              counts[kind] =
+                      (counts[kind] || 0) + 1;
+            }
+          }
+        }
+      }
+
+      bracketDepth += bracketDelta(text);
+
+      if (bracketDepth < 0) {
+        bracketDepth = 0;
+      }
+    }
+
+    return counts;
+  }
+
+  function countExpressionOperators(text, counts) {
+    const multiOperators = [
+      "**=", "//=", "<<=", ">>=",
+      "+=", "-=", "*=", "/=", "%=", "@=",
+      "&=", "^=", "|=",
+      "==", "!=", "<=", ">=", ":=",
+      "//", "**", "<<", ">>"
+    ];
+
+    const singleOperators = [
+      "=", "+", "-", "*", "/", "%", "@",
+      "&", "|", "^", "~", "<", ">"
+    ];
+
+    let i = 0;
+    let quote = null;
+
+    while (i < text.length) {
+      const c = text[i];
+
+      if (quote) {
+        if (c === "\\" && i + 1 < text.length) {
+          i += 2;
+          continue;
+        }
+
+        if (c === quote) {
+          quote = null;
+        }
+
+        i++;
+        continue;
+      }
+
+      if (c === '"' || c === "'") {
+        quote = c;
+        i++;
+        continue;
+      }
+
+      let matched = false;
+
+      for (const op of multiOperators) {
+        if (text.startsWith(op, i)) {
+          counts[op] =
+                  (counts[op] || 0) + 1;
+
+          i += op.length;
+          matched = true;
+          break;
+        }
+      }
+
+      if (matched) continue;
+
+      if (singleOperators.includes(c)) {
+        counts[c] =
+                (counts[c] || 0) + 1;
+      }
+
+      i++;
+    }
+
+    let wordText = text
+            .replace(/"(?:\\.|[^"\\])*"/g, " ")
+            .replace(/'(?:\\.|[^'\\])*'/g, " ");
+
+    const combinedWordOperators = [
+      "is not",
+      "not in"
+    ];
+
+    for (const op of combinedWordOperators) {
+      const pattern =
+              op.replace(" ", "\\s+");
+
+      const re =
+              new RegExp(`\\b${pattern}\\b`, "g");
+
+      const matches =
+              wordText.match(re);
+
+      if (matches) {
+        counts[op] =
+                (counts[op] || 0) +
+                matches.length;
+
+        wordText =
+                wordText.replace(re, " ");
+      }
+    }
+
+    const simpleWordOperators = [
+      "and",
+      "or",
+      "not",
+      "is",
+      "in"
+    ];
+
+    const isForStatement = /^\s*for\b/.test(text);
+
+    for (const op of simpleWordOperators) {
+      if (isForStatement && op === "in") {
+        continue;
+      }
+
+      const re = new RegExp(`\\b${op}\\b`, "g");
+      const matches = wordText.match(re);
+
+      if (matches) {
+        counts[op] = (counts[op] || 0) + matches.length;
+      }
+    }
+  }
+
+  function countFunctionCalls(text, counts) {
+    if (
+            /^\s*(?:async\s+def|def|class)\b/.test(text)
+    ) {
+      return;
+    }
+
+    const excluded = new Set([
+      "if",
+      "elif",
+      "else",
+      "for",
+      "while",
+      "match",
+      "case",
+      "try",
+      "except",
+      "finally",
+      "with",
+      "return",
+      "raise",
+      "assert",
+      "yield",
+      "lambda"
+    ]);
+
+    const regex =
+            /\b([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s*\(/g;
+
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      const name = match[1];
+      const shortName = name.split(".").pop();
+
+      if (
+              excluded.has(name) ||
+              excluded.has(shortName)
+      ) {
+        continue;
+      }
+
+      const operatorName =
+              `${name}()`;
+
+      counts[operatorName] =
+              (counts[operatorName] || 0) + 1;
+    }
+  }
+
+  function analyzePython(code) {
+    if (!code.trim()) {
+      throw new Error("Исходный код пуст.");
+    }
+
+    const lines =
+            normalizeLines(code);
+
+    const matchBlocks =
+            buildMatchBlocks(lines);
+
+    const branching = [];
+
+    let CL = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const t = lines[i].text;
+
+      if (!t) continue;
+
+      if (isIf(t) || isElif(t)) {
+        CL += 1;
+
+        branching.push({
+          line: lines[i].no,
+          kind: isElif(t) ? "elif" : "if",
+          text: t,
+          contribution: 1
+        });
+      }
+
+      if (isMatch(t)) {
+        const b =
+                matchBlocks.find(
+                        x => x.lineIndex === i
+                );
+
+        if (b && b.cases.length >= 2) {
+          const contribution =
+                  b.cases.length - 1;
+
+          CL += contribution;
+
+          branching.push({
+            line: lines[i].no,
+            kind: "match",
+            text:
+                    `${t} — ${b.cases.length} case`,
+            contribution
+          });
+        }
+      }
+
+      if (isFor(t)) {
+        CL += 1;
+
+        branching.push({
+          line: lines[i].no,
+          kind: "for",
+          text: t,
+          contribution: 1
+        });
+      }
+
+      if (isWhile(t)) {
+        CL += 1;
+
+        branching.push({
+          line: lines[i].no,
+          kind: "while",
+          text: t,
+          contribution: 1
+        });
+      }
+    }
+
+    const operatorCounts =
+            countStatements(lines);
+
+    for (const line of lines) {
+      if (!line.text) continue;
+
+      countExpressionOperators(
+              line.text,
+              operatorCounts
+      );
+
+      countFunctionCalls(
+              line.text,
+              operatorCounts
+      );
+    }
+
+    const N_ops =
+            Object.values(operatorCounts)
+                    .reduce(
+                            (sum, value) => sum + value,
+                            0
+                    );
+
+    const depthData =
+            conditionalDepths(
+                    lines,
+                    matchBlocks
+            );
+
+    const cl =
+            N_ops
+                    ? CL / N_ops
+                    : 0;
+
+    return {
+      CL,
+      N_ops,
+      cl,
+      CLI: depthData.maxDepth,
+      statementCounts: operatorCounts,
+      branching,
+      matchBlocks,
+      lines
+    };
+  }
+
+  function fmt(n, digits = 4) {
+    return Number(n)
+            .toFixed(digits);
+  }
+
+  function escapeHtml(s) {
+    return s.replace(
+            /[&<>"']/g,
+            ch => ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;"
+            }[ch])
+    );
+  }
+
+  function render(result) {
+    const metrics =
+            document.getElementById(
+                    "metrics"
+            );
+
+    metrics.innerHTML = [
+      [
+        "CL — абсолютная сложность",
+        result.CL
+      ],
+      [
+        "N_ops — число операторов",
+        result.N_ops
+      ],
+      [
+        "cl — относительная сложность",
+        fmt(result.cl)
+      ],
+      [
+        "CLI — макс. вложенность",
+        result.CLI
+      ]
+    ].map(
+            ([label, value]) =>
+                    `<div class="metric">
+        <div class="label">${label}</div>
+        <div class="value">${value}</div>
+      </div>`
+    ).join("");
+
+    const firstMatch =
+            result.matchBlocks.length > 0
+                    ? result.matchBlocks[0].cases.length
+                    : 0;
+
+
+
+    const stmtRows =
+            Object.entries(
+                    result.statementCounts
+            )
+                    .sort((a, b) => {
+                      if (b[1] !== a[1]) {
+                        return b[1] - a[1];
+                      }
+
+                      return a[0].localeCompare(b[0]);
+                    })
+                    .map(([name, count]) => `
+      <tr>
+        <td>
+          <code>${escapeHtml(name)}</code>
+        </td>
+        <td>${count}</td>
+      </tr>
+    `)
+                    .join("");
+
+    document.getElementById(
+            "summaryTable"
+    ).innerHTML =
+            `<h3>Подсчёт операторов Python для N_ops</h3>
+     <table>
+       <thead>
+         <tr>
+           <th>Оператор</th>
+           <th>Количество</th>
+         </tr>
+       </thead>
+       <tbody>
+         ${stmtRows}
+       </tbody>
+       <tfoot>
+         <tr>
+           <th>Итого N_ops</th>
+           <th>${result.N_ops}</th>
+         </tr>
+       </tfoot>
+     </table>`;
+
+    const branchRows =
+            result.branching.map(r => {
+              const cls =
+                      r.contribution
+                              ? "ok"
+                              : "warn";
+
+              const contribution =
+                      r.contribution
+                              ? `+${r.contribution} в CL`
+                              : "0 в CL";
+
+              return `
+        <tr>
+          <td>${r.line}</td>
+          <td>${escapeHtml(r.kind)}</td>
+          <td>${escapeHtml(r.text)}</td>
+          <td class="${cls}">
+            ${contribution}
+          </td>
+        </tr>
+      `;
+            }).join("");
+
+    document.getElementById(
+            "branchTable"
+    ).innerHTML =
+            `<h3>Найденные управляющие конструкции</h3>
+     <table>
+       <thead>
+         <tr>
+           <th>Строка</th>
+           <th>Конструкция</th>
+           <th>Текст</th>
+           <th>Вклад в CL</th>
+         </tr>
+       </thead>
+       <tbody>
+         ${branchRows}
+       </tbody>
+     </table>`;
+  }
+
+  function analyzeFromUI() {
+    const code =
+            document.getElementById(
+                    "code"
+            ).value;
+
+    const status =
+            document.getElementById(
+                    "status"
+            );
+
+    try {
+      const result =
+              analyzePython(code);
+
+      render(result);
+
+      status.innerHTML =
+              `<span class="ok">
+        Анализ завершён.
+      </span>
+      Найдено операторов
+      N_ops = ${result.N_ops}.`;
+    } catch (e) {
+      status.innerHTML =
+              `<span class="err">
+        Ошибка:
+      </span>
+      ${escapeHtml(e.message)}`;
+
+      document.getElementById(
+              "metrics"
+      ).innerHTML = "";
+
+
+      document.getElementById(
+              "summaryTable"
+      ).innerHTML = "";
+
+      document.getElementById(
+              "branchTable"
+      ).innerHTML = "";
+    }
+  }
+
+  function clearFromUI() {
+    document.getElementById(
+            "code"
+    ).value = "";
+
+    document.getElementById(
+            "metrics"
+    ).innerHTML = "";
+
+
+
+    document.getElementById(
+            "summaryTable"
+    ).innerHTML = "";
+
+    document.getElementById(
+            "branchTable"
+    ).innerHTML = "";
+
+    document.getElementById(
+            "status"
+    ).textContent = "";
+  }
+
+  window.analyzePython =
+          analyzePython;
+
+  window.EXAMPLE =
+          EXAMPLE;
+
+  document.addEventListener(
+          "DOMContentLoaded",
+          () => {
+            const code =
+                    document.getElementById(
+                            "code"
+                    );
+
+            code.value = EXAMPLE;
+
+            document.getElementById(
+                    "analyzeBtn"
+            ).addEventListener(
+                    "click",
+                    analyzeFromUI
+            );
+
+            document.getElementById(
+                    "exampleBtn"
+            ).addEventListener(
+                    "click",
+                    () => {
+                      clearFromUI();
+                      code.value = EXAMPLE;
+                    }
+            );
+
+            document.getElementById(
+                    "clearBtn"
+            ).addEventListener(
+                    "click",
+                    clearFromUI
+            );
+
+            document.getElementById(
+                    "fileInput"
+            ).addEventListener(
+                    "change",
+                    event => {
+                      clearFromUI();
+
+                      const file =
+                              event.target.files[0];
+
+                      if (!file) return;
+
+                      const reader =
+                              new FileReader();
+
+                      reader.onload = () => {
+                        code.value =
+                                String(
+                                        reader.result || ""
+                                );
+                      };
+
+                      reader.readAsText(
+                              file,
+                              "utf-8"
+                      );
+                    }
+            );
+          }
+  );
+</script>
+</body>
+</html>
