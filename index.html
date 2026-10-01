@@ -145,16 +145,16 @@ def calculate_bonus(age, purchases, weekday):
             if counter % 3 == 0:
                 bonus += 1
             counter += 1
-
-    match weekday:
-        case "monday":
-            bonus += 3
-        case "tuesday":
-            bonus += 2
-        case "wednesday":
-            bonus += 4
-        case _:
-            bonus += 1
+    for position in calculate_bonus(purchases):
+        match weekday:
+            case "monday":
+                bonus += 3
+            case "tuesday":
+                bonus += 2
+            case "wednesday":
+                bonus += 4
+            case _:
+                bonus += 1
 
     return bonus
 
@@ -441,8 +441,12 @@ def calculate_bonus(age, purchases, weekday):
       const elif = isElif(line);
       const els = isElse(line);
       const iff = isIf(line);
+      const loop = isFor(line) || isWhile(line);
+      const mch = isMatch(line);
 
       if (elif) {
+        // elif — следующий уровень относительно
+        // соответствующего if/elif: вложенность +1.
         while (
                 stack.length &&
                 stack[stack.length - 1].indent > indent
@@ -454,28 +458,20 @@ def calculate_bonus(age, purchases, weekday):
                 stack.length &&
                 stack[stack.length - 1].indent === indent
         ) {
-          const parentDepth =
-                  stack[stack.length - 1].depth;
-
+          const parentDepth = stack[stack.length - 1].depth;
           const d = parentDepth + 1;
 
           depths[i] = d;
 
           stack.pop();
-
-          stack.push({
-            indent,
-            depth: d
-          });
+          stack.push({ indent, depth: d });
         } else {
-          depths[i] = 1;
-
-          stack.push({
-            indent,
-            depth: 1
-          });
+          depths[i] = 0;
+          stack.push({ indent, depth: 0 });
         }
       } else if (els) {
+        // else не увеличивает вложенность —
+        // сохраняет глубину последнего if/elif.
         while (
                 stack.length &&
                 stack[stack.length - 1].indent > indent
@@ -487,15 +483,10 @@ def calculate_bonus(age, purchases, weekday):
                 stack.length &&
                 stack[stack.length - 1].indent === indent
         ) {
-          depths[i] =
-                  stack[stack.length - 1].depth;
+          depths[i] = stack[stack.length - 1].depth;
         } else {
-          depths[i] = 1;
-
-          stack.push({
-            indent,
-            depth: 1
-          });
+          depths[i] = 0;
+          stack.push({ indent, depth: 0 });
         }
       } else {
         while (
@@ -505,55 +496,37 @@ def calculate_bonus(age, purchases, weekday):
           stack.pop();
         }
 
-        if (iff) {
-          const parent =
-                  stack.length
-                          ? stack[stack.length - 1].depth
-                          : 0;
+        // Сюда входят if, а также for/while/match:
+        // все они создают уровень вложенности.
+        const isBranching = iff || loop || mch;
 
-          const d = parent + 1;
+        if (isBranching) {
+          // Глубина = количество обрамляющих ветвящихся
+          // конструкций (не считая саму текущую).
+          const d = stack.length;
 
-          stack.push({
-            indent,
-            depth: d
-          });
-
+          stack.push({ indent, depth: d });
           depths[i] = d;
         } else if (stack.length) {
-          depths[i] =
-                  stack[stack.length - 1].depth;
+          depths[i] = stack[stack.length - 1].depth;
         }
       }
 
-      const matchExtra =
-              matchExtraForLine(i, matchBlocks);
-
-      const effective =
-              depths[i] + matchExtra;
+      const matchExtra = matchExtraForLine(i, matchBlocks);
+      const effective = depths[i] + matchExtra;
 
       if (effective > maxDepth) {
         maxDepth = effective;
       }
 
-      const mb =
-              matchBlocks.find(
-                      x => x.lineIndex === i
-              );
+      const mb = matchBlocks.find(x => x.lineIndex === i);
 
-      if (
-              mb &&
-              mb.ordinaryCases.length >= 1
-      ) {
-        // m обычных case -> дополнительная
-        // глубина m - 1.
-        // Это соответствует n - 2,
-        // если n = m + 1.
+      if (mb && mb.ordinaryCases.length >= 1) {
+        // Для match: первый обычный case = глубина match,
+        // каждый следующий +1.
         const matchDepth =
                 depths[i] +
-                Math.max(
-                        0,
-                        mb.ordinaryCases.length - 1
-                );
+                Math.max(0, mb.ordinaryCases.length - 1);
 
         if (matchDepth > maxDepth) {
           maxDepth = matchDepth;

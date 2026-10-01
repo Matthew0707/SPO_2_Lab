@@ -24,15 +24,15 @@ def calculate_bonus(age, purchases, weekday):
             if counter % 3 == 0:
                 bonus += 1
             counter += 1
-
-    match weekday:
-        case "monday":
-            bonus += 3
-        case "tuesday":
-            bonus += 2
-        case "wednesday":
-            bonus += 4
-        case _:
-            bonus += 1
+    for position in calculate_bonus(purchases):
+        match weekday:
+            case "monday":
+                bonus += 3
+            case "tuesday":
+                bonus += 2
+            case "wednesday":
+                bonus += 4
+            case _:
+                bonus += 1
 
     return bonus
