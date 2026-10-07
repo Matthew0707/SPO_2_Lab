@@ -140,11 +140,11 @@ def calculate_bonus(age, purchases, weekday):
                         if bonus > 12:
                             bonus -= 2
 
-        counter = 0
-        while counter < purchases:
-            if counter % 3 == 0:
-                bonus += 1
-            counter += 1
+    counter = 0
+    while counter < purchases:
+        if counter % 3 == 0:
+            bonus += 1
+        counter += 1
     for position in calculate_bonus(purchases):
         match weekday:
             case "monday":
