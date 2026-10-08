@@ -24,7 +24,8 @@ def calculate_bonus(age, purchases, weekday):
         if counter % 3 == 0:
             bonus += 1
         counter += 1
-    for position in calculate_bonus(purchases):
+
+    for purchase_index in range(purchases):
         match weekday:
             case "monday":
                 bonus += 3
